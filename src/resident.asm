@@ -36,7 +36,8 @@ plane         resb 1
 seq_index     resb 1
 map_mask      resb 1
 gc_index      resb 1
-gc_saved      resb 5
+gc_saved      resb 4
+gc_mode       resb 1
 drawn_x       resw 1
 drawn_y       resw 1
 saved_word    resw 1
@@ -656,9 +657,11 @@ int10:
 
 ; ---------------------------------------------------------------------------
 ; BIOS PS/2 device handler. The BIOS pushes status, X, Y, and Z words and
-; makes a far call. The handler runs on the stack of the interrupted program.
+; makes a far call. The handler runs on the stack of the interrupted program
+; with interrupts disabled, so that a second packet cannot interrupt a draw.
 
 ps2_handler:
+    cli
     pusha
     push ds
     push es

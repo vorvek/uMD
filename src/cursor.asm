@@ -273,8 +273,8 @@ build_masks:
 
 ; Save the VGA registers that the draw changes and set write mode 0 and read
 ; mode 0.
-gc_indices db 1, 3, 4, 5, 8
-gc_values  db 0, 0, 0, 0, 0FFh
+gc_indices db 1, 3, 4, 8
+gc_values  db 0, 0, 0, 0FFh
 
 vga_enter:
     mov dx, 3C4h
@@ -290,7 +290,7 @@ vga_enter:
     mov [gc_index], al
     mov si, gc_indices
     mov di, gc_saved
-    mov cx, 5
+    mov cx, 4
 .save:
     mov dx, 3CEh
     lodsb
@@ -299,23 +299,39 @@ vga_enter:
     in al, dx
     mov [di], al
     inc di
-    mov al, [si+4]
+    mov al, [si+3]
     out dx, al
     loop .save
-    ; Keep the shift and 256-color bits of the mode register, or the raster
-    ; shows a wrong line while the pointer is drawn.
-    mov al, [gc_saved+3]
-    and al, 70h
-    mov ah, al
-    mov al, 5
+    ; Write the mode register only when the write or read mode is not 0.
+    ; A write changes the render mode of some adapters for a moment, and the
+    ; raster shows a wrong line.
     dec dx
-    out dx, ax
+    mov al, 5
+    out dx, al
+    inc dx
+    in al, dx
+    mov [gc_mode], al
+    and al, 70h
+    cmp al, [gc_mode]
+    je .done
+    out dx, al
+.done:
     ret
 
 vga_leave:
+    mov dx, 3CEh
+    mov al, 5
+    out dx, al
+    inc dx
+    in al, dx
+    cmp al, [gc_mode]
+    je .registers
+    mov al, [gc_mode]
+    out dx, al
+.registers:
     mov si, gc_indices
     mov di, gc_saved
-    mov cx, 5
+    mov cx, 4
 .restore:
     mov dx, 3CEh
     lodsb

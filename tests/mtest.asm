@@ -322,6 +322,8 @@ text_tests:
     expect byte [es:100*320+100], 0
     expect byte [es:101*320+101], 0Fh
     expect byte [es:100*320+103], 55h
+    mov si, 100*320+100
+    call check_arrow
     mov ax, 2
     int 33h
     mov si, 100*320+100
@@ -574,6 +576,36 @@ wait_tick:
     je fail
     ret
 
+; The 16x16 block at ES:SI must show the default arrow over 55h: a screen
+; mask bit keeps the pixel, a cursor mask bit XORs it with 0Fh.
+check_arrow:
+    mov bx, arrow
+    mov dx, 16
+.row:
+    push si
+    mov cx, 16
+.pixel:
+    mov al, 55h
+    test word [bx], 8000h
+    jnz .keep
+    mov al, 0
+.keep:
+    test word [bx+32], 8000h
+    jz .plain
+    xor al, 0Fh
+.plain:
+    expect [es:si], al
+    inc si
+    shl word [bx], 1
+    shl word [bx+32], 1
+    loop .pixel
+    pop si
+    add si, 320
+    add bx, 2
+    dec dx
+    jnz .row
+    ret
+
 ; 16 rows of 16 bytes at ES:SI must hold 55h.
 check_block:
     mov dx, 16
@@ -658,4 +690,9 @@ h_di      dw 0
 msg_pass  db 'PASS', 13, 10, '$'
 msg_fail  db 'FAIL $'
 msg_crlf  db 13, 10, '$'
+arrow:
+    dw 3FFFh, 1FFFh, 0FFFh, 07FFh, 03FFh, 01FFh, 00FFh, 007Fh
+    dw 003Fh, 001Fh, 01FFh, 10FFh, 30FFh, 0F87Fh, 0F87Fh, 0FC3Fh
+    dw 0000h, 4000h, 6000h, 7000h, 7800h, 7C00h, 7E00h, 7F00h
+    dw 7F80h, 7C00h, 6C00h, 4600h, 0600h, 0300h, 0300h, 0000h
 statebuf  times 512 db 0
