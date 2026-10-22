@@ -37,7 +37,7 @@ Run `UMD` with `/X`, `/Y`, or `/S` again to change the installed driver. `UMD /?
 
 ## UMDCOM
 
-`UMDCOM.COM` is the serial mouse driver. It has the same INT 33h functions, pointer, and sensitivity options as `UMD.COM`. The resident part uses 3,024 bytes.
+`UMDCOM.COM` is the serial mouse driver. It has the same INT 33h functions, pointer, and sensitivity options as `UMD.COM`. The resident part uses 3,040 bytes.
 
 ```dos
 LH C:\UMD\UMDCOM.COM

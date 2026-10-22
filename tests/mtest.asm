@@ -287,6 +287,20 @@ text_tests:
     je .sensitivity_done
     call wait_move
     expect cx, 352
+    cmp byte [loop_mode], 0
+    je .sensitivity_done
+    cmp byte [l_proto], 'M'
+    je .sensitivity_done
+
+    tcase 50                    ; middle button, Logitech and Mouse Systems
+    call wait_buttons
+    expect bx, 4
+    cmp byte [l_proto], 'Z'
+    je .middle_up
+    call send_action            ; Logitech: a packet without the fourth byte,
+.middle_up:                     ; then the next packet reports the release
+    call wait_buttons
+    expect bx, 0
 .sensitivity_done:
     mov ax, 1Ah
     mov bx, 50
@@ -615,11 +629,12 @@ wait_tick:
 
 ; Loopback mode: send the next action of the IzarraVM schedule through the
 ; UART. The handler of the driver receives the bytes as if the mouse had
-; sent them. An action is dx, dy (positive down), and the buttons (1 left).
+; sent them. An action is dx, dy (positive down), and the buttons (1 left,
+; 4 middle).
 send_action:
     pusha
     mov bl, [l_index]
-    cmp bl, 8
+    cmp bl, ACTIONS
     jae .done
     inc byte [l_index]
     mov bh, 0
@@ -658,7 +673,9 @@ send_action:
     mov cx, 3
     cmp byte [l_proto], '3' & 0DFh
     jne .send
-    mov byte [di+3], 0          ; Logitech: middle button up
+    test bl, 4
+    jz .send
+    mov byte [di+3], 20h        ; Logitech: fourth byte while the middle button is down
     inc cx
     jmp .send
 .msystems:
@@ -671,6 +688,10 @@ send_action:
     jz .msb
     or cl, 1
 .msb:
+    test bl, 4
+    jz .msm
+    or cl, 2
+.msm:
     not cl
     and cl, 7
     or cl, 80h
@@ -800,6 +821,8 @@ uart      dw 0
 packet    times 5 db 0
 actions   db 16, 0, 0,  0, 8, 0,  0, 0, 1,  0, 0, 0
           db 0, 0, 1,  4, 0, 1,  0, 0, 0,  16, 0, 0
+          db 0, 0, 4,  0, 0, 0,  4, 0, 0
+ACTIONS   equ ($-actions)/3
 f_ax      dw 0
 f_bx      dw 0
 f_cx      dw 0

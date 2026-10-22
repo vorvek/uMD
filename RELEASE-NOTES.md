@@ -2,7 +2,7 @@
 
 ## Changes in 0.2.0
 
-- Add `UMDCOM.COM`, a serial mouse driver with the same INT 33h functions and pointer as `UMD.COM`. It drives a Microsoft, Logitech three-button, or Mouse Systems mouse on COM1 to COM4 through the UART interrupt, finds the port and the protocol from the mouse answer, and takes `/C`, `/I`, `/M`, `/3`, and `/Z` for the port, the IRQ, and the protocol. The resident part uses 3,024 bytes.
+- Add `UMDCOM.COM`, a serial mouse driver with the same INT 33h functions and pointer as `UMD.COM`. It drives a Microsoft, Logitech three-button, or Mouse Systems mouse on COM1 to COM4 through the UART interrupt, finds the port and the protocol from the mouse answer, and takes `/C`, `/I`, `/M`, `/3`, and `/Z` for the port, the IRQ, and the protocol. The resident part uses 3,040 bytes.
 - Report the mouse type and the IRQ in INT 33h function 24h: CH=4 for PS/2, CH=2 and CL=IRQ for serial.
 - `UMD` and `UMDCOM` treat the other μMD driver as another mouse driver and do not change it.
 - `MOUSTEST.EXE` shows whether the PS/2 or the serial driver is installed.

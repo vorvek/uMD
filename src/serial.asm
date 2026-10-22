@@ -39,17 +39,25 @@ serial_isr:
 ; upward.
 serial_byte:
     mov si, [scount]
-    cmp byte [proto], PROTO_MSYS
+    mov dl, [proto]
+    cmp dl, PROTO_MSYS
     je .msys
     test al, 40h            ; the first byte has bit 6 set
     jz .data
+    cmp si, 3               ; a new packet right after three bytes: no fourth
+    jne .first              ; byte came, so the middle button is up
+    mov byte [middle], 0
+.first:
     xor si, si
     jmp .store
 .data:
     test si, si
-    jnz .store
-    cmp byte [proto], PROTO_LT
+    jz .ret
+    cmp si, 3
+    jb .store
+    cmp dl, PROTO_LT
     jne .ret
+    mov word [scount], 0
     shr al, 3               ; fourth byte: bit 5 is the middle button
     and al, 4
     mov [middle], al
@@ -58,19 +66,18 @@ serial_byte:
 .msys:
     test si, si
     jnz .store
-    mov ah, al
-    and ah, 0F8h
-    cmp ah, 80h             ; the first byte is 10000lmr
-    jne .ret
+    test al, 78h            ; the first byte is 10000lmr
+    jnz .ret
+    test al, al
+    jns .ret
 .store:
     mov [spacket+si], al
     inc si
     mov [scount], si
     cmp si, 3
     jb .ret
-    cmp byte [proto], PROTO_MSYS
+    cmp dl, PROTO_MSYS
     je .msys_pair
-    mov word [scount], 0
     mov ah, [spacket]       ; data bytes have bits 7 and 6 clear
     mov ch, ah
     shl ch, 6
@@ -90,10 +97,9 @@ serial_byte:
     mov bl, ch
     jmp .report
 .msys_pair:                 ; bytes 2 and 3 after the third byte, bytes 4 and
-    cmp si, 3               ; 5 after the fifth
-    je .pair
-    cmp si, 5
-    jb .ret
+    cmp si, 4               ; 5 after the fifth
+    je .ret
+    jb .pair
     mov word [scount], 0
 .pair:
     mov al, [spacket]
