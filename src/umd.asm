@@ -1,9 +1,10 @@
 ; SPDX-FileCopyrightText: 2026 vorvek
 ; SPDX-License-Identifier: GPL-3.0-only
 
-; uMD: a PS/2 mouse driver for DOS.
+; uMD: a mouse driver for DOS. UMD.COM drives a PS/2 mouse. UMDCOM.COM,
+; assembled with SERIAL defined, drives a serial mouse.
 ;
-; UMD.COM stays resident with its PSP, the code in resident.asm and
+; The driver stays resident with its PSP, the code in resident.asm and
 ; cursor.asm, and the data that follows the code. The installer in
 ; install.asm is released after the TSR call.
 

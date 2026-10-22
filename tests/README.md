@@ -22,9 +22,12 @@ python scripts/izarra_test.py --out E:\tmp\uMD\<session>\iz --load-high
 ```powershell
 python scripts/box_test.py --out E:\tmp\uMD\<session>\run
 python scripts/box_test.py --out E:\tmp\uMD\<session>\run --load-high
+python scripts/box_test.py --out E:\tmp\uMD\<session>\run --mouse msserial
 ```
 
 The script builds a 32 MiB FAT16 disk with the MS-DOS system files, JEMMEX, and CTMOUSE from the μCDD Battle Chess fixture, boots 86Box with the fixture machine (Pentium II, S3 ViRGE, PS/2 mouse), and reads the results from the disk image. `AUTOEXEC.BAT` installs μMD, changes the sensitivity, runs MTEST, removes μMD, checks that it is gone, installs CTMOUSE, and checks that μMD refuses to install over it. The memory control block chain before and after each driver gives the resident size of both. The run passes when every step passes and μMD is smaller.
+
+`--mouse msserial`, `ltserial`, or `mssystems` puts that serial mouse on COM1 of the 86Box machine and runs `UMDCOM.COM` instead of `UMD.COM`. The Logitech mouse gets `rts_toggle = 1`, so that it answers the probe; the Mouse Systems run installs μMD with `/Z` and CTMOUSE with `/M`. The 86Box fixture is the only automated test of the serial driver. Check the motion by hand in `MOUSTEST`.
 
 The 86Box run skips the motion tests. The Award BIOS of the fixture does not pass bytes that a program writes with 8042 command D3h to the device handler, although IRQ 12 fires and a direct interrupt handler receives them. Real packets reach the handler, which CuteMouse 2.1 beta 4 uses too.
 

@@ -1,8 +1,10 @@
 ; SPDX-FileCopyrightText: 2026 vorvek
 ; SPDX-License-Identifier: GPL-3.0-only
 
-; Resident part: INT 33h service, INT 10h hook, and the BIOS PS/2 device
-; handler.
+; Resident part: INT 33h service, INT 10h hook, and the hardware handler.
+; UMD.COM takes the BIOS PS/2 device handler from ps2.asm. UMDCOM.COM is
+; assembled with SERIAL defined and takes the COM port handler from
+; serial.asm.
 
 ; Caller registers after "push ds / push es / pusha" with BP = SP.
 F_DI equ 0
@@ -25,6 +27,13 @@ A_PFRAC equ 12          ; pixel remainder
 A_MFRAC equ 14          ; mickey fraction
 
 LAST_FUNCTION equ 27h   ; 31h is dispatched as 27h
+
+; Mouse type that function 24h reports in CH.
+%ifdef SERIAL
+DRIVER_TYPE equ 2
+%else
+DRIVER_TYPE equ 4
+%endif
 
 ; Runtime scratch lives in the reserved PSP bytes 3Ch to 5Bh. DOS does not
 ; read them. The saved mouse state follows in the command tail area; functions
@@ -408,10 +417,16 @@ f_language:
     mov word [bp+F_BX], 0
     ret
 
-; 24h: version 6.26, PS/2 mouse.
+; 24h: version 6.26, then the mouse type in CH and the IRQ in CL.
 f_version:
     mov word [bp+F_BX], 0626h
-    mov word [bp+F_CX], 0400h
+%ifdef SERIAL
+    mov al, [irq]
+    mov ah, DRIVER_TYPE
+    mov [bp+F_CX], ax
+%else
+    mov word [bp+F_CX], DRIVER_TYPE << 8
+%endif
     ret
 
 ; 26h
@@ -642,26 +657,15 @@ int10:
     jmp far [cs:old10]
 
 ; ---------------------------------------------------------------------------
-; BIOS PS/2 device handler. The BIOS pushes status, X, Y, and Z words and
-; makes a far call. The handler runs on the stack of the interrupted program
-; with interrupts disabled, so that a second packet cannot interrupt a draw.
+; Hardware input. The PS/2 handler and the serial handler both give
+; process_packet the PS/2 status in AL, the X count in BL, and the Y count
+; in CL.
 
-ps2_handler:
-    cli
-    pusha
-    push ds
-    push es
-    mov bp, sp
-    mov ax, [bp+30]         ; status
-    mov bx, [bp+28]         ; X
-    mov cx, [bp+26]         ; Y
-    push cs
-    pop ds
-    call process_packet
-    pop es
-    pop ds
-    popa
-    retf
+%ifdef SERIAL
+%include "serial.asm"
+%else
+%include "ps2.asm"
+%endif
 
 ; AL status, BL X count, CL Y count.
 process_packet:

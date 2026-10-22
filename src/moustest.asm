@@ -42,6 +42,9 @@ start:
     add bx, 6
     mov [umd_ptr], bx
     mov [umd_ptr+2], es
+    mov ax, 24h
+    int 33h
+    mov [dtype], ch
 .driver:
     mov ax, 1130h
     mov bh, 3                   ; 8x8 font
@@ -116,6 +119,15 @@ start:
     cmp word [umd_ptr+2], 0
     je .exit
     mov dx, msg_result
+    mov ah, 9
+    int 21h
+    cmp byte [dtype], 2
+    jne .result_x
+    mov dx, msg_com
+    mov ah, 9
+    int 21h
+.result_x:
+    mov dx, msg_x
     mov ah, 9
     int 21h
     mov si, 0
@@ -270,6 +282,12 @@ draw_info:
 .umd:
     mov si, txt_x
     call put_text
+    mov si, txt_ps2
+    cmp byte [dtype], 2
+    jne .type
+    mov si, txt_com
+.type:
+    call put_text
     mov si, 0
     call percent
     mov dx, 0300h
@@ -371,6 +389,13 @@ draw_info:
     cmp word [umd_ptr+2], 0
     je .no_options
     mov si, txt_options
+    call put_text
+    cmp byte [dtype], 2
+    jne .options_x
+    mov si, txt_com_opt
+    call put_text
+.options_x:
+    mov si, txt_opt_x
     call put_text
     mov si, 0
     call percent
@@ -567,6 +592,7 @@ handler:
     retf
 
 umd_ptr   dd 0
+dtype     db 0
 font      dd 0
 graphics  db 0
 fw        db 0
@@ -587,7 +613,9 @@ line      times 48 db 0
 
 txt_title   db 'MOUSTEST ', UMD_VERSION, ' ', 0
 txt_other   db 'driver is not uMD', 0
-txt_x       db 'uMD X=', 0
+txt_x       db 'uMD ', 0
+txt_ps2     db 'PS/2 X=', 0
+txt_com     db 'COM X=', 0
 txt_pct_y   db '% Y=', 0
 txt_pos     db 'Pos X=', 0
 txt_y       db ' Y=', 0
@@ -601,10 +629,14 @@ txt_total   db 'Total X=', 0
 txt_range   db 'Range 0..', 0
 txt_by      db ' x 0..', 0
 txt_keys    db 'Left/Right:X Up/Down:Y M:mode', 0
-txt_options db 'UMD /X', 0
+txt_options db 'UMD', 0
+txt_com_opt db 'COM', 0
+txt_opt_x   db ' /X', 0
 txt_opt_y   db ' /Y', 0
 txt_keys2   db '  R:reset Esc:quit', 0
 msg_no_driver db 'No mouse driver is installed.', 13, 10, '$'
-msg_result  db 'Sensitivity: UMD /X$'
+msg_result  db 'Sensitivity: UMD$'
+msg_com     db 'COM$'
+msg_x       db ' /X$'
 msg_y       db ' /Y$'
 msg_crlf    db 13, 10, '$'

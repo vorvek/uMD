@@ -2,12 +2,13 @@
 
 **Eternal betaware**
 
-μMD (Micro Mouse Driver) is a tiny PS/2 mouse driver for DOS. It works well with [μCDD](https://github.com/vorvek/uCDD).
+μMD (Micro Mouse Driver) is a tiny mouse driver for DOS. It works well with [μCDD](https://github.com/vorvek/uCDD). It comes as two drivers. `UMD.COM` is for a PS/2 mouse. `UMDCOM.COM` is for a serial mouse. Use one of them.
 
 ## Requirements
 
 - A 286 or later and DOS 3.3 or later. `LH` needs DOS 5.
-- A PS/2 mouse port with BIOS support (INT 15h, AH=C2h). Two or three buttons are supported.
+- `UMD.COM`: a PS/2 mouse port with BIOS support (INT 15h, AH=C2h). Two or three buttons are supported.
+- `UMDCOM.COM`: a serial mouse on COM1 to COM4 that speaks the Microsoft, Logitech, or Mouse Systems protocol. The port needs an 8250, 16450, or 16550 UART.
 
 ## Setup
 
@@ -34,9 +35,35 @@ UMD [/X<n>] [/Y<n>] [/S<n>] [/U]
 
 Run `UMD` with `/X`, `/Y`, or `/S` again to change the installed driver. `UMD /?` prints the help.
 
+## UMDCOM
+
+`UMDCOM.COM` is the serial mouse driver. It has the same INT 33h functions, pointer, and sensitivity options as `UMD.COM`. The resident part uses 3,024 bytes.
+
+```dos
+LH C:\UMD\UMDCOM.COM
+```
+
+Without options, UMDCOM looks for a mouse on COM1 to COM4 and takes the first port that answers. The mouse tells the driver whether it is a Microsoft or a Logitech mouse. A Mouse Systems mouse does not answer, so it needs `/Z`.
+
+```text
+UMDCOM [/C<n>] [/I<n>] [/M | /3 | /Z] [/X<n>] [/Y<n>] [/S<n>] [/U]
+```
+
+| Option | Effect |
+| --- | --- |
+| `/C<n>` | Use COM port n (1 to 4). Default: the first port with a mouse. |
+| `/I<n>` | Use IRQ n (2 to 7). Default: 4 for COM1 and COM3, 3 for COM2 and COM4. |
+| `/M` | Use the Microsoft protocol, two buttons. |
+| `/3` | Use the Logitech protocol, three buttons. |
+| `/Z` | Use the Mouse Systems protocol, three buttons. |
+| `/X<n>`, `/Y<n>`, `/S<n>` | Sensitivity, as for `UMD`. |
+| `/U` | Remove μMD from memory. |
+
+With `/M`, `/3`, or `/Z`, the driver installs on the given port, or on the first port that exists, even when no mouse answers. Without them, `UMDCOM` stops with `No serial mouse found.` when no mouse answers.
+
 ## MOUSTEST
 
-`MOUSTEST.EXE` is a small debug tool used to see if the driver is actually working, and will allow you to fine tune your mouse sensitivity. The arrow keys change the sensitivity of the installed driver immediately, and the driver keeps the new values after you quit. The screen shows the `UMD` options that make them permanent in `AUTOEXEC.BAT`.
+`MOUSTEST.EXE` is a small debug tool used to see if the driver is actually working, and will allow you to fine tune your mouse sensitivity. It works with both drivers and shows which one is installed. The arrow keys change the sensitivity of the installed driver immediately, and the driver keeps the new values after you quit. The screen shows the `UMD` options that make them permanent in `AUTOEXEC.BAT`.
 
 | Key | Effect |
 | --- | --- |

@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 vorvek
 # SPDX-License-Identifier: GPL-3.0-only
 
-"""Build UMD.COM, MOUSTEST.EXE, and the DOS test programs with NASM."""
+"""Build UMD.COM, UMDCOM.COM, MOUSTEST.EXE, and the DOS test programs with NASM."""
 
 from pathlib import Path
 import re
@@ -13,13 +13,14 @@ ROOT = Path(__file__).resolve().parent.parent
 BUILD = ROOT / 'build'
 
 
-def assemble(source, name, listing=False, exe=False):
+def assemble(source, name, listing=False, exe=False, defines=()):
     BUILD.mkdir(exist_ok=True)
     nasm = shutil.which('nasm')
     if not nasm:
         raise SystemExit('NASM is required.')
     output = BUILD / name
     command = [nasm, '-f', 'bin', '-I', str(ROOT / 'src') + '/', str(ROOT / source), '-o', str(output)]
+    command += [f'-D{define}' for define in defines]
     if listing:
         command += ['-l', str(output.with_suffix('.lst'))]
     subprocess.run(command, check=True)
@@ -34,13 +35,18 @@ def assemble(source, name, listing=False, exe=False):
     return output
 
 
-def main():
-    output = assemble('src/umd.asm', 'UMD.COM', listing=True)
+def driver(name, defines=()):
+    output = assemble('src/umd.asm', name, listing=True, defines=defines)
     listing = output.with_suffix('.lst').read_text()
     match = re.search(r'BA([0-9A-F]{2})([0-9A-F]{2})\s+<1>\s+mov dx, \(resident_end', listing)
     if match:
         paragraphs = int(match[2] + match[1], 16)
-        print(f'UMD.COM resident part: {paragraphs * 16} bytes including the PSP')
+        print(f'{name} resident part: {paragraphs * 16} bytes including the PSP')
+
+
+def main():
+    driver('UMD.COM')
+    driver('UMDCOM.COM', defines=['SERIAL=1'])
     assemble('src/moustest.asm', 'MOUSTEST.EXE', exe=True)
     if (ROOT / 'tests').is_dir():
         for source in sorted((ROOT / 'tests').glob('*.asm')):

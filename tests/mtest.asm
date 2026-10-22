@@ -67,11 +67,14 @@ start:
     expect ax, 0FFFFh
     expect bx, 3
 
-    tcase 3                     ; version and type
+    tcase 3                     ; version and type: 2 serial or 4 PS/2
     mov ax, 24h
     int 33h
     expect bh, 6
+    cmp ch, 2
+    je type_ok
     expect ch, 4
+type_ok:
 
     tcase 4                     ; center of the 640x200 text screen
     mov ax, 3
