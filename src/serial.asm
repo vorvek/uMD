@@ -72,32 +72,28 @@ serial_byte:
     cmp byte [proto], PROTO_MSYS
     je .msys_pair
     mov word [scount], 0
-    mov ah, [spacket]
+    mov ah, [spacket]       ; data bytes have bits 7 and 6 clear
     mov bl, ah
     shl bl, 6
-    mov al, [spacket+1]
-    and al, 3Fh
-    or bl, al               ; X: bits 1 and 0 of the first byte, then six bits
+    or bl, [spacket+1]      ; X: bits 1 and 0 of the first byte, then six bits
     mov cl, ah
     shl cl, 4
     and cl, 0C0h
-    mov al, [spacket+2]
-    and al, 3Fh
-    or cl, al               ; Y: bits 3 and 2 of the first byte, then six bits
+    or cl, [spacket+2]      ; Y: bits 3 and 2 of the first byte, then six bits
     neg cl                  ; Microsoft counts down as positive
 .ms_buttons:
     mov al, [spacket]
-    mov ah, al
-    shr al, 5
-    and al, 1               ; left
-    shr ah, 3
-    and ah, 2               ; right
-    or al, ah
+    shr al, 4
+    and al, 3               ; L, R
+    mov bx, ms_buttons
+    xlat
     or al, [middle]
     jmp .report
-.msys_pair:                 ; bytes 2 and 3, then bytes 4 and 5
+.msys_pair:                 ; bytes 2 and 3 after the third byte, bytes 4 and
+    cmp si, 3               ; 5 after the fifth
+    je .pair
     cmp si, 5
-    jb .pair
+    jb .ret
     mov word [scount], 0
 .pair:
     mov al, [spacket]
@@ -120,7 +116,9 @@ serial_byte:
 .ret:
     ret
 
-; Mouse Systems L, M, R bits to the INT 33h order L, R, M.
+; Microsoft L, R bits and Mouse Systems L, M, R bits to the INT 33h order
+; L, R, M.
+ms_buttons   db 0, 2, 1, 3
 msys_buttons db 0, 2, 4, 6, 1, 3, 5, 7
 
 uart      dw 0
