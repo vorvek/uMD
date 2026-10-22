@@ -14,7 +14,9 @@ is gone, installs CTMOUSE, and tries uMD again. The memory control block
 chain after each installation gives the resident size of both drivers.
 
 --mouse selects the 86Box mouse and the driver: ps2 runs UMD.COM; msserial,
-ltserial, and mssystems put that serial mouse on COM1 and run UMDCOM.COM.
+ltserial, and mssystems put that serial mouse on COM1 and run UMDCOM.COM,
+then MTEST /L sends the motion test packets through the UART in loopback
+mode.
 """
 
 import argparse
@@ -38,15 +40,15 @@ ROMS = Path('D:/86box/roms')
 WATCHDOG = ROOT / 'scripts' / 'box_watchdog.ps1'
 SYSTEM_FILES = ['IO.SYS', 'MSDOS.SYS', 'COMMAND.COM', 'JEMMEX.EXE', 'CTMOUSE.EXE']
 CYLINDERS = 65
-# 86Box mouse type: driver, install options, CTMOUSE options, and the device
-# section of 86box.cfg.
+# 86Box mouse type: driver, install options, MTEST loopback option, CTMOUSE
+# options, and the device section of 86box.cfg.
 MICE = {
-    'ps2': dict(driver='UMD', options='', ctmouse='', section=''),
-    'msserial': dict(driver='UMDCOM', options='', ctmouse='',
+    'ps2': dict(driver='UMD', options='', loop='', ctmouse='', section=''),
+    'msserial': dict(driver='UMDCOM', options='', loop='M', ctmouse='',
                      section='[Microsoft Serial Mouse]\nport = 0\nbuttons = 2\n'),
-    'ltserial': dict(driver='UMDCOM', options='', ctmouse='',
+    'ltserial': dict(driver='UMDCOM', options='', loop='3', ctmouse='',
                      section='[Logitech Serial Mouse]\nport = 0\nbuttons = 3\nrts_toggle = 1\n'),
-    'mssystems': dict(driver='UMDCOM', options=' /Z', ctmouse=' /M',
+    'mssystems': dict(driver='UMDCOM', options=' /Z', loop='Z', ctmouse=' /M',
                       section='[Mouse Systems Serial Mouse]\nport = 0\nbuttons = 3\n'),
 }
 
@@ -80,8 +82,10 @@ def make_image(work, load_high, mouse):
            'MEMFREE > M1.TXT', 'MCB > MCB1.BIN',
            f'{driver} /X150 /Y80 > CHANGE.TXT', 'IF ERRORLEVEL 1 GOTO FAIL',
            f'{driver} /S100 > CHANGE2.TXT', 'IF ERRORLEVEL 1 GOTO FAIL',
-           'MTEST > MTEST.TXT', 'IF ERRORLEVEL 1 GOTO FAIL',
-           f'{driver} /U > REMOVE.TXT', 'IF ERRORLEVEL 1 GOTO FAIL',
+           'MTEST > MTEST.TXT', 'IF ERRORLEVEL 1 GOTO FAIL']
+    if MICE[mouse]['loop']:
+        bat += [f'MTEST /L{MICE[mouse]["loop"]} > MTESTL.TXT', 'IF ERRORLEVEL 1 GOTO FAIL']
+    bat += [f'{driver} /U > REMOVE.TXT', 'IF ERRORLEVEL 1 GOTO FAIL',
            'MEMFREE > M2.TXT',
            'MTEST /N > MTEST2.TXT', 'IF ERRORLEVEL 1 GOTO FAIL', 'MCB > MCB2.BIN',
            f'{high}CTMOUSE{MICE[mouse]["ctmouse"]} > CTMOUSE.TXT', 'MEMFREE > M3.TXT', 'MCB > MCB3.BIN',
@@ -164,7 +168,7 @@ def main():
     image = work / 'disk.img'
     report = dict(mouse=args.mouse, driver=MICE[args.mouse]['driver'], elapsed_seconds=elapsed,
                   result=text(image, 'RESULT.TXT') or 'NO_RESULT')
-    for name in ['INSTALL', 'CHANGE', 'CHANGE2', 'MTEST', 'REMOVE', 'MTEST2', 'CTMOUSE', 'SECOND']:
+    for name in ['INSTALL', 'CHANGE', 'CHANGE2', 'MTEST', 'MTESTL', 'REMOVE', 'MTEST2', 'CTMOUSE', 'SECOND']:
         report[name.lower()] = text(image, name + '.TXT')
     memory = {name: read(image, name + '.TXT') for name in ['M0', 'M1', 'M2', 'M3']}
     if all(memory.values()):

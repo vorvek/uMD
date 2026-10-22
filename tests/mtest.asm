@@ -9,6 +9,10 @@
 ;             order that scripts/izarra_test.py sends them, and exit through
 ;             the IzarraVM test port.
 ;   MTEST /N  Expect no mouse driver.
+;   MTEST /L<p>  Like /W, but send the packets through the UART of COM1 in
+;             loopback mode, for the serial driver. p is the protocol:
+;             M Microsoft, 3 Logitech, Z Mouse Systems. 86Box raises the
+;             UART interrupt in loopback mode; a real UART does not.
 
 cpu 286
 bits 16
@@ -37,6 +41,23 @@ start:
     jne .not_w
     mov byte [wait_mode], 1
 .not_w:
+    cmp al, 'L'
+    jne .not_l
+    lodsb
+    and al, 0DFh
+    mov [l_proto], al
+    mov byte [wait_mode], 1
+    mov byte [loop_mode], 1
+    mov ax, 40h
+    mov es, ax
+    mov dx, [es:0]
+    mov [uart], dx
+    push cs
+    pop es
+    add dx, 4                   ; modem control: loopback, OUT2, RTS, DTR
+    mov al, 1Bh
+    out dx, al
+.not_l:
     cmp al, 'N'
     jne .scan
     tcase 90
@@ -479,7 +500,16 @@ fail:
     int 21h
 
 ; In wait mode, stop the emulator through the IzarraVM test port with AL.
+; In loopback mode, take the UART out of loopback instead.
 test_exit:
+    cmp byte [loop_mode], 0
+    je .izarra
+    mov dx, [uart]
+    add dx, 4
+    mov al, 0Bh
+    out dx, al
+    ret
+.izarra:
     cmp byte [wait_mode], 0
     je .done
     mov ah, al
@@ -549,6 +579,10 @@ wait_buttons:
     ret
 
 wait_start:
+    cmp byte [loop_mode], 0
+    je .ticks
+    call send_action
+.ticks:
     push es
     push ax
     mov ax, 40h
@@ -577,6 +611,90 @@ wait_tick:
     pop ax
     pop es
     je fail
+    ret
+
+; Loopback mode: send the next action of the IzarraVM schedule through the
+; UART. The handler of the driver receives the bytes as if the mouse had
+; sent them. An action is dx, dy (positive down), and the buttons (1 left).
+send_action:
+    pusha
+    mov bl, [l_index]
+    cmp bl, 8
+    jae .done
+    inc byte [l_index]
+    mov bh, 0
+    mov si, bx
+    shl bx, 1
+    add si, bx
+    add si, actions
+    mov al, [si]                ; dx
+    mov ah, [si+1]              ; dy
+    mov bl, [si+2]              ; buttons
+    mov di, packet
+    cmp byte [l_proto], 'Z'
+    je .msystems
+    mov dx, ax
+    mov cl, 40h                 ; Microsoft: 01LRYYXX, then X and Y
+    test bl, 1
+    jz .right
+    or cl, 20h
+.right:
+    test bl, 2
+    jz .high
+    or cl, 10h
+.high:
+    mov ch, dh
+    shr ch, 6
+    shl ch, 2
+    or cl, ch
+    mov ch, dl
+    shr ch, 6
+    or cl, ch
+    mov [di], cl
+    and dl, 3Fh
+    mov [di+1], dl
+    and dh, 3Fh
+    mov [di+2], dh
+    mov cx, 3
+    cmp byte [l_proto], '3' & 0DFh
+    jne .send
+    mov byte [di+3], 0          ; Logitech: middle button up
+    inc cx
+    jmp .send
+.msystems:
+    mov cl, 0                   ; Mouse Systems: 10000lmr, 0 when pressed
+    test bl, 1
+    jz .msr
+    or cl, 4
+.msr:
+    test bl, 2
+    jz .msb
+    or cl, 1
+.msb:
+    not cl
+    and cl, 7
+    or cl, 80h
+    mov [di], cl
+    mov [di+1], al
+    neg ah                      ; Mouse Systems counts up as positive
+    mov [di+2], ah
+    mov word [di+3], 0
+    mov cx, 5
+.send:
+    mov si, di
+.byte:
+    mov dx, [uart]
+    add dx, 5
+.empty:
+    in al, dx                   ; line status: transmitter empty
+    test al, 20h
+    jz .empty
+    sub dx, 5
+    lodsb
+    out dx, al
+    loop .byte
+.done:
+    popa
     ret
 
 ; The 16x16 block at ES:SI must show the default arrow over 55h: a screen
@@ -675,6 +793,13 @@ handler:
 
 test_no   db 0
 wait_mode db 0
+loop_mode db 0
+l_proto   db 0
+l_index   db 0
+uart      dw 0
+packet    times 5 db 0
+actions   db 16, 0, 0,  0, 8, 0,  0, 0, 1,  0, 0, 0
+          db 0, 0, 1,  4, 0, 1,  0, 0, 0,  16, 0, 0
 f_ax      dw 0
 f_bx      dw 0
 f_cx      dw 0
