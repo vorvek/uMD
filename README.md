@@ -2,23 +2,22 @@
 
 **Eternal betaware**
 
-μMD (Micro Mouse Driver) is a small PS/2 mouse driver for DOS. No acceleration, no serial mice, no wheel. It works well with [μCDD](https://github.com/vorvek/uCDD).
+μMD (Micro Mouse Driver) is a tiny PS/2 mouse driver for DOS. It works well with [μCDD](https://github.com/vorvek/uCDD).
 
 ## Requirements
 
 - A 286 or later and DOS 3.3 or later. `LH` needs DOS 5.
-- A PS/2 mouse port with BIOS support (INT 15h, AH=C2h). Two or three buttons.
-- VGA for the pointer in graphics modes. Text modes work on any adapter.
+- A PS/2 mouse port with BIOS support (INT 15h, AH=C2h). Two or three buttons are supported.
 
 ## Setup
 
-Copy `UMD.COM` into a directory and add it to `AUTOEXEC.BAT`:
+Copy `UMD.COM` into a directory and add it to `AUTOEXEC.BAT`. Can be safely loaded high.
 
 ```dos
 LH C:\UMD\UMD.COM
 ```
 
-Load μMD before μCDD. The resident part uses 2,800 bytes.
+If using it with μCDD, load the mouse driver first. The resident part uses 2,800 bytes.
 
 ## Usage
 
@@ -30,14 +29,14 @@ UMD [/X<n>] [/Y<n>] [/S<n>] [/U]
 | --- | --- |
 | `/X<n>` | Set the horizontal sensitivity to n percent (10 to 400). |
 | `/Y<n>` | Set the vertical sensitivity to n percent. |
-| `/S<n>` | Set both sensitivities. |
+| `/S<n>` | Set the same sensitivity for both axes. |
 | `/U` | Remove μMD from memory. |
 
 Run `UMD` with `/X`, `/Y`, or `/S` again to change the installed driver. `UMD /?` prints the help.
 
 ## MOUSTEST
 
-`MOUSTEST.EXE` shows the pointer, the position, the buttons, the mickeys, and the events of the installed driver in text mode and in VGA mode 13h. With μMD installed, the arrow keys change the sensitivity of each axis, and the screen shows the `UMD` options that give the same result.
+`MOUSTEST.EXE` is a small debug tool used to see if the driver is actually working, and will allow you to fine tune your mouse sensitivity. It doesn't override it, but will give you the values you have to pass as arguments.
 
 | Key | Effect |
 | --- | --- |
