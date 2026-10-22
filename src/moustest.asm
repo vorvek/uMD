@@ -267,12 +267,14 @@ draw_info:
     call put_text
     mov si, 0
     call percent
-    call put_number
+    mov dx, 0300h
+    call put_field
     mov si, txt_pct_y
     call put_text
     mov si, 2
     call percent
-    call put_number
+    mov dx, 0300h
+    call put_field
     mov al, '%'
     stosb
 .title_done:
@@ -282,11 +284,13 @@ draw_info:
     mov si, txt_pos
     call put_text
     mov ax, [pos_x]
-    call put_number
+    mov dx, 0300h
+    call put_field
     mov si, txt_y
     call put_text
     mov ax, [pos_y]
-    call put_number
+    mov dx, 0300h
+    call put_field
     mov si, txt_buttons
     call put_text
     mov al, [buttons]
@@ -311,15 +315,18 @@ draw_info:
     mov si, txt_last
     call put_text
     mov ax, [last_dx]
-    call put_signed
+    mov dx, 0501h
+    call put_field
     mov si, txt_dy
     call put_text
     mov ax, [last_dy]
-    call put_signed
+    mov dx, 0501h
+    call put_field
     mov si, txt_events
     call put_text
     mov ax, [events]
-    call put_number
+    mov dx, 0500h
+    call put_field
     mov si, txt_mask
     call put_text
     mov al, [last_mask]
@@ -330,11 +337,13 @@ draw_info:
     mov si, txt_total
     call put_text
     mov ax, [total_x]
-    call put_signed
+    mov dx, 0601h
+    call put_field
     mov si, txt_y
     call put_text
     mov ax, [total_y]
-    call put_signed
+    mov dx, 0601h
+    call put_field
     call put_line
 
     mov di, line
@@ -360,12 +369,12 @@ draw_info:
     call put_text
     mov si, 0
     call percent
-    call put_number
+    call put_left
     mov si, txt_opt_y
     call put_text
     mov si, 2
     call percent
-    call put_number
+    call put_left
 .no_options:
     mov si, txt_keys2
     call put_text
@@ -455,16 +464,67 @@ put_text:
 .done:
     ret
 
-put_signed:
+; AX value, DH field width, DL nonzero for a sign. Right-aligned.
+put_field:
+    mov [fw], dh
+    mov bh, 0
+    test dl, dl
+    jz .count
+    mov bh, '+'
     test ax, ax
-    jns .plus
+    jns .count
     neg ax
-    mov byte [di], '-'
+    mov bh, '-'
+.count:
+    mov [fsign], bh
+    xor cx, cx
+    mov bx, 10
+.digit:
+    xor dx, dx
+    div bx
+    push dx
+    inc cx
+    test ax, ax
+    jnz .digit
+    mov al, cl
+    cmp byte [fsign], 0
+    je .pad
+    inc al
+.pad:
+    cmp al, [fw]
+    jae .sign
+    mov byte [di], ' '
     inc di
-    jmp put_number
-.plus:
-    mov byte [di], '+'
+    inc al
+    jmp .pad
+.sign:
+    mov al, [fsign]
+    test al, al
+    jz .out
+    stosb
+.out:
+    pop ax
+    add al, '0'
+    stosb
+    loop .out
+    ret
+
+; AX value, left-aligned in three columns.
+put_left:
+    mov bx, di
+    push bx
+    call put_number
+    pop bx
+    add bx, 3
+.pad:
+    cmp di, bx
+    jae .done
+    mov byte [di], ' '
     inc di
+    jmp .pad
+.done:
+    ret
+
 put_number:
     xor cx, cx
     mov bx, 10
@@ -523,6 +583,8 @@ umd_seg   dw 0
 font      dd 0
 umd_off   dw 0
 graphics  db 0
+fw        db 0
+fsign     db 0
 line_no   db 0
 pos_x     dw 0
 pos_y     dw 0
