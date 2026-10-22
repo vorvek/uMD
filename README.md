@@ -46,6 +46,19 @@ Run `UMD` with `/X`, `/Y`, or `/S` again to change the installed driver. `UMD /?
 | R | Set the counters to zero |
 | Esc | Quit and print the `UMD` options |
 
+<table>
+  <tr>
+    <td align="center" width="50%">
+      <strong>Text mode</strong><br>
+      <a href="docs/moustest-text.png"><img src="docs/moustest-text.png" alt="MOUSTEST in text mode" width="100%"></a>
+    </td>
+    <td align="center" width="50%">
+      <strong>VGA mode 13h</strong><br>
+      <a href="docs/moustest-vga.png"><img src="docs/moustest-vga.png" alt="MOUSTEST in VGA mode 13h" width="100%"></a>
+    </td>
+  </tr>
+</table>
+
 ## Build
 
 See [BUILDING.md](BUILDING.md) and [tests/README.md](tests/README.md).
