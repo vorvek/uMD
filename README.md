@@ -36,7 +36,7 @@ Run `UMD` with `/X`, `/Y`, or `/S` again to change the installed driver. `UMD /?
 
 ## MOUSTEST
 
-`MOUSTEST.EXE` is a small debug tool used to see if the driver is actually working, and will allow you to fine tune your mouse sensitivity. It doesn't override it, but will give you the values you have to pass as arguments.
+`MOUSTEST.EXE` is a small debug tool used to see if the driver is actually working, and will allow you to fine tune your mouse sensitivity. The arrow keys change the sensitivity of the installed driver immediately, and the driver keeps the new values after you quit. The screen shows the `UMD` options that make them permanent in `AUTOEXEC.BAT`.
 
 | Key | Effect |
 | --- | --- |
