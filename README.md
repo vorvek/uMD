@@ -2,7 +2,18 @@
 
 **Eternal betaware**
 
-μMD (Micro Mouse Driver) is a tiny mouse driver for DOS. It works well with [μCDD](https://github.com/vorvek/uCDD). It comes as two drivers. `UMD.COM` is for a PS/2 mouse. `UMDCOM.COM` is for a serial mouse. Use one of them.
+μMD (Micro Mouse Driver) is a tiny mouse driver for DOS. It works well with [μCDD](https://github.com/vorvek/uCDD).
+
+## Download
+
+μMD comes as two drivers. Each [release](https://github.com/vorvek/uMD/releases) has one package for each. Download the one for your mouse:
+
+| Package | Driver | Mouse |
+| --- | --- | --- |
+| `umd-<version>-ps2.zip` | `UMD.COM` | PS/2 mouse port |
+| `umd-<version>-serial.zip` | `UMDCOM.COM` | Serial mouse on COM1 to COM4 |
+
+Both packages contain `MOUSTEST.EXE`.
 
 ## Requirements
 
