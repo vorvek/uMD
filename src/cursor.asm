@@ -271,7 +271,8 @@ build_masks:
     loop .pixel
     ret
 
-; Save the VGA registers that the planar draw changes and set write mode 0.
+; Save the VGA registers that the draw changes and set write mode 0 and read
+; mode 0.
 gc_indices db 1, 3, 4, 5, 8
 gc_values  db 0, 0, 0, 0, 0FFh
 
@@ -301,6 +302,14 @@ vga_enter:
     mov al, [si+4]
     out dx, al
     loop .save
+    ; Keep the shift and 256-color bits of the mode register, or the raster
+    ; shows a wrong line while the pointer is drawn.
+    mov al, [gc_saved+3]
+    and al, 70h
+    mov ah, al
+    mov al, 5
+    dec dx
+    out dx, ax
     ret
 
 vga_leave:
