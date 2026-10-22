@@ -162,12 +162,10 @@ f_reset:
 f_show:
     call video_check
     cmp byte [level], 0
-    jge .done
+    jge f_none
     inc byte [level]
     mov byte [excl_on], 0
     jmp refresh
-.done:
-    ret
 
 ; 02h
 f_hide:
@@ -246,28 +244,20 @@ f_graphics_cursor:
     mov [hot_x], ax
     mov ax, [bp+F_CX]
     mov [hot_y], ax
-    push ds
-    pop es
     mov di, masks
-    mov si, [bp+F_DX]
-    mov ds, [bp+F_ES]
     mov cx, 32
-    rep movsw
-    push cs
-    pop ds
+    call copy_in
     jmp redraw
 
 ; 0Ah: BX=0 software cursor, CX screen mask, DX cursor mask.
 f_text_cursor:
     cmp word [bp+F_BX], 0
-    jne .done
+    jne f_none
     mov ax, [bp+F_CX]
     mov [text_and], ax
     mov ax, [bp+F_DX]
     mov [text_xor], ax
     jmp redraw
-.done:
-    ret
 
 ; 0Bh
 f_motion:
@@ -298,9 +288,8 @@ f_ratio:
 .y:
     mov ax, [bp+F_DX]
     test ax, ax
-    jz .done
+    jz f_none
     mov [ratio_y], ax
-.done:
     ret
 
 ; 10h: CX, DX upper left and SI, DI lower right of the exclusion area.
@@ -352,15 +341,9 @@ f_save:
 ; 17h: copy the state from ES:DX.
 f_restore:
     call erase
-    push ds
-    pop es
     mov di, state
-    mov si, [bp+F_DX]
-    mov ds, [bp+F_ES]
     mov cx, (state_end-state)/2
-    rep movsw
-    push cs
-    pop ds
+    call copy_in
     jmp refresh
 
 ; 18h, 19h: alternate handlers are not supported.
@@ -457,6 +440,17 @@ f_range:
 ; ---------------------------------------------------------------------------
 ; State
 
+; Copy CX words from the caller's ES:DX to DS:DI.
+copy_in:
+    push ds
+    pop es
+    mov si, [bp+F_DX]
+    mov ds, [bp+F_ES]
+    rep movsw
+    push cs
+    pop ds
+    ret
+
 clamp:
     mov si, axis_x
     call clamp_axis
@@ -508,7 +502,6 @@ reset_state:
     mov si, default_masks
     mov cx, 32
     rep movsw
-    mov byte [level], -1
     mov word [ratio_x], 8
     mov word [ratio_y], 16
     mov word [sens_x], 3232h
@@ -516,41 +509,33 @@ reset_state:
     mov word [text_and], 77FFh
     mov word [text_xor], 7700h
     call compute_mult
-; Read the video mode, then center the pointer in the full screen.
+; Forget the drawn pointer, hide it, read the video mode, and center the
+; pointer in the full screen.
 video_reset:
+    mov byte [drawn], 0
+    mov byte [level], -1
     call video_init
-    xor ax, ax
-    mov [min_x], ax
-    mov [min_y], ax
+    mov si, axis_x
     mov ax, [scr_w]
-    dec ax
-    mov [max_x], ax
-    inc ax
-    shr ax, 1
-    mov [pos_x], ax
+    call .axis
+    mov si, axis_y
     mov ax, [scr_h]
+.axis:
+    mov word [si+A_MIN], 0
     dec ax
-    mov [max_y], ax
+    mov [si+A_MAX], ax
     inc ax
     shr ax, 1
-    mov [pos_y], ax
+    mov [si+A_POS], ax
     ret
 
-; Start again when the BIOS mode or the screen size changed without INT 10h
-; function 00h.
+; Start again when the BIOS mode or the screen size changed.
 video_check:
-    push es
     call bda_key
     cmp ax, [mode_key]
-    jne .changed
+    jne video_reset
     cmp dl, [mode_key+2]
-    je .same
-.changed:
-    pop es
-    mov byte [drawn], 0
-    jmp video_reset
-.same:
-    pop es
+    jne video_reset
     ret
 
 ; Mode 0 to 13h: 0 text at B800h, 1 text at B000h, 2 CGA 2 bpp, 3 CGA 1 bpp,
@@ -577,17 +562,15 @@ bda_key:
     ret
 
 video_init:
-    push es
     call bda_key
     mov [mode_key], ax
     mov [mode_key+2], dl
+    mov bx, ax
     mov al, ah
     inc al
     mov ah, 0
     mul word [es:85h]
-    mov [height], ax
-    mov bl, [mode_key]
-    pop es
+    mov [scr_h], ax
     mov bh, 0
     mov al, 0FFh
     cmp bl, 13h
@@ -597,9 +580,8 @@ video_init:
     mov [vtype], al
     cmp al, 0FFh
     je .size
-    mov bl, 6
-    mul bl
-    mov si, ax
+    cbw
+    imul si, ax, 6
     add si, type_params
     push ds
     pop es
@@ -628,14 +610,12 @@ video_init:
     mov [xshift], cl
     shl ax, cl
     mov [scr_w], ax
-    mov ax, [height]
     cmp byte [vtype], 1
-    ja .graphics
+    ja f_none
     mov al, [mode_key+1]
     inc al
     mov ah, 0
     shl ax, 3
-.graphics:
     mov [scr_h], ax
     ret
 
@@ -643,7 +623,7 @@ video_init:
 ; INT 10h: a mode set hides the pointer and starts the ranges again.
 
 int10:
-    cmp ah, 0
+    test ah, ah
     jne .chain
     pushf
     call far [cs:old10]
@@ -652,9 +632,8 @@ int10:
     pusha
     push cs
     pop ds
-    mov byte [drawn], 0
-    mov byte [level], -1
-    call video_reset
+    mov byte [mode_key], 0FFh
+    call video_check
     popa
     pop es
     pop ds
@@ -691,7 +670,7 @@ process_packet:
     mov dh, bl
     or dh, cl
     jz .still
-    mov byte [events], 1
+    inc byte [events]
 .still:
     mov dh, cl
     mov al, bl
@@ -722,8 +701,8 @@ process_packet:
     mov ah, [buttons]
     mov [buttons], al
     xor ah, al              ; changed buttons
-    mov dl, 1               ; button bit
-    mov dh, 2               ; press event bit
+    jz .moved
+    mov dx, 0201h           ; DL button bit, DH press event bit
     xor bx, bx
 .button:
     test ah, dl
@@ -748,6 +727,7 @@ process_packet:
     add bx, 2
     cmp bx, 6
     jb .button
+.moved:
     call refresh
     mov al, [events]
     test al, [user_mask]
@@ -760,13 +740,13 @@ process_packet:
     mov si, [last_mick_x]
     mov di, [last_mick_y]
     call far [user_handler]
-    push cs
-    pop ds
 .done:
     ret
 
 ; SI axis, AX signed count. Returns AX = mickeys.
 move_axis:
+    test ax, ax
+    jz f_none
     imul word [si+A_MULT]
     add al, [si+A_MFRAC]
     adc ah, 0
@@ -777,12 +757,8 @@ move_axis:
     add [si+A_MICK], ax
     push ax
     shl ax, 3
+    add ax, [si+A_PFRAC]
     cwd
-    mov bx, [si+A_PFRAC]
-    mov cx, bx
-    sar cx, 15
-    add ax, bx
-    adc dx, cx
     idiv word [si+A_RATIO]
     mov [si+A_PFRAC], dx
     add [si+A_POS], ax

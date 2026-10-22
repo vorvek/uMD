@@ -39,9 +39,9 @@ start:
     jne .driver
     cmp word [es:bx+4], 'D'
     jne .driver
-    mov [umd_seg], es
     add bx, 6
-    mov [umd_off], bx
+    mov [umd_ptr], bx
+    mov [umd_ptr+2], es
 .driver:
     mov ax, 1130h
     mov bh, 3                   ; 8x8 font
@@ -82,28 +82,26 @@ start:
     call enter_mode
     jmp .loop
 .reset:
+    mov di, events
+    mov cx, total_y+2-events
     xor ax, ax
-    mov [events], ax
-    mov [total_x], ax
-    mov [total_y], ax
-    mov [last_dx], ax
-    mov [last_dy], ax
+    rep stosb
     jmp .loop
 .x_down:
-    mov si, 0
     mov ax, -STEP
-    jmp .adjust
+    jmp .x
 .x_up:
-    mov si, 0
     mov ax, STEP
+.x:
+    mov si, 0
     jmp .adjust
 .y_down:
-    mov si, 2
     mov ax, -STEP
-    jmp .adjust
+    jmp .y
 .y_up:
-    mov si, 2
     mov ax, STEP
+.y:
+    mov si, 2
 .adjust:
     call adjust
     jmp .loop
@@ -115,7 +113,7 @@ start:
     int 10h
     xor ax, ax
     int 33h
-    cmp word [umd_seg], 0
+    cmp word [umd_ptr+2], 0
     je .exit
     mov dx, msg_result
     mov ah, 9
@@ -187,7 +185,7 @@ enter_mode:
 
 ; SI = 0 for X or 2 for Y, AX = change in percent.
 adjust:
-    cmp word [umd_seg], 0
+    cmp word [umd_ptr+2], 0
     je .done
     push ax
     call percent
@@ -206,8 +204,7 @@ adjust:
     mov bx, 100
     div bx
     push es
-    mov es, [umd_seg]
-    mov bx, [umd_off]
+    les bx, [umd_ptr]
     mov [es:bx+si], ax
     pop es
     mov ax, 1Bh
@@ -220,8 +217,7 @@ adjust:
 ; SI = 0 for X or 2 for Y. Returns AX = percent of the resident scale.
 percent:
     push es
-    mov es, [umd_seg]
-    mov bx, [umd_off]
+    les bx, [umd_ptr]
     mov ax, [es:bx+si]
     pop es
     mov bx, 100
@@ -266,7 +262,7 @@ draw_info:
     mov di, line
     mov si, txt_title
     call put_text
-    cmp word [umd_seg], 0
+    cmp word [umd_ptr+2], 0
     jne .umd
     mov si, txt_other
     call put_text
@@ -372,7 +368,7 @@ draw_info:
     call put_line
 
     mov di, line
-    cmp word [umd_seg], 0
+    cmp word [umd_ptr+2], 0
     je .no_options
     mov si, txt_options
     call put_text
@@ -395,13 +391,10 @@ draw_info:
 
 ; Write the line buffer at DI, padded to 40 columns, in white on black.
 put_line:
+    mov cx, line+40
+    sub cx, di
     mov al, ' '
-.pad:
-    cmp di, line+40
-    jae .write
-    stosb
-    jmp .pad
-.write:
+    rep stosb
     push es
     mov si, line
     mov cx, 40
@@ -473,6 +466,8 @@ put_text:
 .done:
     ret
 
+put_number:
+    xor dx, dx
 ; AX value, DH field width, DL nonzero for a sign. Right-aligned.
 put_field:
     mov [fw], dh
@@ -534,23 +529,6 @@ put_left:
 .done:
     ret
 
-put_number:
-    xor cx, cx
-    mov bx, 10
-.digit:
-    xor dx, dx
-    div bx
-    push dx
-    inc cx
-    test ax, ax
-    jnz .digit
-.out:
-    pop ax
-    add al, '0'
-    stosb
-    loop .out
-    ret
-
 put_hex:
     mov ah, al
     shr al, 4
@@ -588,9 +566,8 @@ handler:
 .done:
     retf
 
-umd_seg   dw 0
+umd_ptr   dd 0
 font      dd 0
-umd_off   dw 0
 graphics  db 0
 fw        db 0
 fsign     db 0

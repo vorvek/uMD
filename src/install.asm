@@ -11,6 +11,8 @@ install:
     jne .help
     mov ax, 3533h
     int 21h
+    mov [old33], bx
+    mov [old33+2], es
     mov ax, es
     or ax, bx
     jz .fresh
@@ -23,12 +25,8 @@ install:
     call apply_scale
     mov dx, msg_present
     jc .status
-    mov bl, [es:sens_x]
-    mov cl, [es:sens_y]
-    mov dl, [es:threshold]
-    mov bh, 0
-    mov ch, 0
-    mov dh, 0
+    mov ax, 1Bh
+    int 33h
     mov ax, 1Ah
     int 33h
     mov dx, msg_changed
@@ -61,16 +59,11 @@ install:
     int 15h
     jc .no_mouse
     call apply_scale
-    mov byte [drawn], 0
     call reset_state
     mov ax, 0C200h
     mov bh, 1
     int 15h
     jc .unregister
-    mov ax, 3533h
-    int 21h
-    mov [old33], bx
-    mov [old33+2], es
     mov ax, 3510h
     int 21h
     mov [old10], bx
@@ -255,12 +248,12 @@ parse_options:
     jne .bad
     call number
     jc .bad
-    mov [opt_x], ax
     mov [opt_y], ax
-    jmp parse_options
+    jmp .store_x
 .x:
     call number
     jc .bad
+.store_x:
     mov [opt_x], ax
     jmp parse_options
 .y:
@@ -284,14 +277,12 @@ parse_options:
 ; Decimal number at SI, 10 to 400. CF set when invalid.
 number:
     xor ax, ax
-    xor cx, cx
 .digit:
     mov bl, [si]
     sub bl, '0'
     cmp bl, 9
     ja .end
     inc si
-    inc cx
     mov bh, 0
     mov dx, 10
     mul dx
@@ -300,7 +291,6 @@ number:
     jae .bad
     jmp .digit
 .end:
-    jcxz .bad
     cmp ax, 10
     jb .bad
     cmp ax, 400

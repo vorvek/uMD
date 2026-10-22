@@ -46,18 +46,14 @@ refresh:
     mov [drawn_x], bx
     mov [drawn_y], cx
     mov byte [drawn], 1
-    mov byte [op], 0
     jmp paint
 
 ; Put the screen content back.
 erase:
     cmp byte [drawn], 0
-    je .done
+    je f_none
     mov byte [drawn], 0
-    mov byte [op], 1
     jmp paint
-.done:
-    ret
 
 ; BX, CX = text cell, or top left pixel in graphics modes.
 target:
@@ -75,13 +71,13 @@ target:
     sub cx, [hot_y]
     ret
 
-; Draw (op 0) or erase (op 1) at drawn_x, drawn_y.
+; Draw (drawn = 1) or erase (drawn = 0) at drawn_x, drawn_y.
 paint:
     mov es, [vseg]
     cmp byte [vtype], 1
     ja paint_graphics
-    cmp byte [op], 0
-    jne .restore
+    cmp byte [drawn], 0
+    je .restore
     mov al, [mode_key+2]
     mov ah, 0
     mul word [drawn_y]
@@ -107,30 +103,7 @@ paint:
     ret
 
 paint_graphics:
-    cmp byte [vseg+1], 0A0h
-    jne .start
-    call vga_enter
-.start:
-    mov word [save_ptr], savebuf
-    mov word [row], 0
-.row:
-    mov ax, [drawn_y]
-    add ax, [row]
-    js .next_row
-    cmp ax, [height]
-    jge .done
-    mov bx, ax
-    and bx, 1
-    cmp word [interleave], 0
-    je .linear
-    shr ax, 1
-.linear:
-    mul word [stride]
-    test bx, bx
-    jz .address
-    add ax, [interleave]
-.address:
-    mov [row_addr], ax
+    ; The byte window of each row, from the clipped left and right pixels.
     mov ax, [drawn_x]
     mov bx, ax
     add bx, 15
@@ -145,7 +118,7 @@ paint_graphics:
     mov bx, cx
 .right:
     cmp ax, bx
-    jg .next_row
+    jg f_none
     mov cl, [bpp_shift]
     shl ax, cl
     shr ax, 3
@@ -155,8 +128,29 @@ paint_graphics:
     sub bx, ax
     inc bx
     mov [count], bx
-    cmp byte [op], 0
-    jne .planes
+    call vga_enter
+    mov word [save_ptr], savebuf
+    mov word [row], 0
+.row:
+    mov ax, [drawn_y]
+    add ax, [row]
+    js .next_row
+    cmp ax, [scr_h]
+    jge .done
+    mov bx, ax
+    and bx, 1
+    cmp word [interleave], 0
+    je .linear
+    shr ax, 1
+.linear:
+    mul word [stride]
+    test bx, bx
+    jz .address
+    add ax, [interleave]
+.address:
+    mov [row_addr], ax
+    cmp byte [drawn], 0
+    je .planes
     call build_masks
 .planes:
     mov byte [plane], 0
@@ -178,8 +172,8 @@ paint_graphics:
     add bx, [first]
     mov cx, [count]
     mov si, [save_ptr]
-    cmp byte [op], 0
-    jne .restore
+    cmp byte [drawn], 0
+    je .restore
     xor di, di
 .byte:
     mov al, [es:bx]
@@ -206,23 +200,19 @@ paint_graphics:
     cmp word [row], 16
     jb .row
 .done:
-    cmp byte [vseg+1], 0A0h
-    jne .ret
-    call vga_leave
-.ret:
-    ret
+    jmp vga_leave
 
 ; Fill sbuf (AND) and cbuf (XOR) for the current row and byte window.
 build_masks:
+    push bp
     push es
     push ds
     pop es
     mov di, sbuf
-    mov cx, [count]
+    mov cx, 16
     mov al, 0FFh
     rep stosb
-    mov di, cbuf
-    mov cx, [count]
+    mov cl, 16
     mov al, 0
     rep stosb
     pop es
@@ -231,6 +221,15 @@ build_masks:
     mov dx, [masks+si]      ; screen mask row
     mov si, [masks+32+si]   ; cursor mask row
     mov bx, [drawn_x]
+    mov cl, [bpp_shift]
+    mov di, bx
+    shl di, cl
+    mov ax, [first]
+    shl ax, 3
+    sub di, ax              ; bit offset of the first pixel in the window
+    mov al, [bpp]
+    mov ah, 0
+    mov bp, ax
     mov cx, 16
 .pixel:
     test bx, bx
@@ -239,12 +238,7 @@ build_masks:
     jge .skip
     push cx
     push bx
-    mov ax, bx
-    mov cl, [bpp_shift]
-    shl ax, cl
-    mov bx, [first]
-    shl bx, 3
-    sub ax, bx              ; bit offset in the window
+    mov ax, di
     mov bx, ax
     shr bx, 3               ; byte index
     and al, 7
@@ -268,10 +262,12 @@ build_masks:
     pop bx
     pop cx
 .skip:
+    add di, bp
     shl dx, 1
     shl si, 1
     inc bx
     loop .pixel
+    pop bp
     ret
 
 ; Save the Graphics Controller registers that the draw depends on and set
@@ -298,7 +294,6 @@ vga_enter:
     mov di, gc_saved
     mov cx, 5
 .save:
-    mov dx, 3CEh
     lodsb
     out dx, al
     inc dx
@@ -313,6 +308,7 @@ vga_enter:
     mov al, ah
     out dx, al
 .next:
+    dec dx
     loop .save
     ret
 
@@ -320,8 +316,8 @@ vga_leave:
     mov si, gc_indices
     mov di, gc_saved
     mov cx, 5
-.restore:
     mov dx, 3CEh
+.restore:
     lodsb
     out dx, al
     inc dx
@@ -332,8 +328,8 @@ vga_leave:
     out dx, al
 .same:
     inc di
-    loop .restore
     dec dx
+    loop .restore
     mov al, [gc_index]
     out dx, al
     mov dx, 3C4h
@@ -375,9 +371,8 @@ interleave  dw 0
 vseg        dw 0
 stride      dw 0
 width       dw 0
-height      dw 0
 scr_w       dw 640
-scr_h       dw 200
+scr_h       dw 200      ; pixel height in graphics modes, rows * 8 in text
 xshift      db 0
 sbuf        times 16 db 0
 cbuf        times 16 db 0
