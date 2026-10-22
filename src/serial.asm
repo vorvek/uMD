@@ -53,8 +53,7 @@ serial_byte:
     shr al, 3               ; fourth byte: bit 5 is the middle button
     and al, 4
     mov [middle], al
-    xor bx, bx
-    xor cx, cx
+    xor cx, cx              ; no motion
     jmp .ms_buttons
 .msys:
     test si, si
@@ -73,21 +72,22 @@ serial_byte:
     je .msys_pair
     mov word [scount], 0
     mov ah, [spacket]       ; data bytes have bits 7 and 6 clear
-    mov bl, ah
-    shl bl, 6
-    or bl, [spacket+1]      ; X: bits 1 and 0 of the first byte, then six bits
+    mov ch, ah
+    shl ch, 6
+    or ch, [spacket+1]      ; X: bits 1 and 0 of the first byte, then six bits
     mov cl, ah
     shl cl, 4
     and cl, 0C0h
     or cl, [spacket+2]      ; Y: bits 3 and 2 of the first byte, then six bits
     neg cl                  ; Microsoft counts down as positive
-.ms_buttons:
+.ms_buttons:                ; CH = X, CL = Y
     mov al, [spacket]
     shr al, 4
     and al, 3               ; L, R
     mov bx, ms_buttons
     xlat
     or al, [middle]
+    mov bl, ch
     jmp .report
 .msys_pair:                 ; bytes 2 and 3 after the third byte, bytes 4 and
     cmp si, 3               ; 5 after the fifth
