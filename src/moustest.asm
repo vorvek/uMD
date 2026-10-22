@@ -20,12 +20,21 @@ start:
     pop ds
     push cs
     pop es
-    xor ax, ax
-    int 33h
-    cmp ax, 0FFFFh
-    jne .no_driver
     mov ax, 3533h
     int 21h
+    mov ax, es
+    or ax, bx
+    jz .no_driver
+    cmp byte [es:bx], 0CFh
+    je .no_driver
+    push es
+    push bx
+    xor ax, ax
+    int 33h
+    pop bx
+    pop es
+    cmp ax, 0FFFFh
+    jne .no_driver
     cmp word [es:bx+2], 'uM'
     jne .driver
     cmp word [es:bx+4], 'D'

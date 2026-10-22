@@ -80,6 +80,8 @@ paint:
     mov es, [vseg]
     cmp byte [vtype], 1
     ja paint_graphics
+    cmp byte [op], 0
+    jne .restore
     mov al, [mode_key+2]
     mov ah, 0
     mul word [drawn_y]
@@ -91,8 +93,7 @@ paint:
     add ax, [es:4Eh]
     pop es
     mov bx, ax
-    cmp byte [op], 0
-    jne .restore
+    mov [text_addr], bx
     mov ax, [es:bx]
     mov [saved_word], ax
     and ax, [text_and]
@@ -100,6 +101,7 @@ paint:
     mov [es:bx], ax
     ret
 .restore:
+    mov bx, [text_addr]
     mov ax, [saved_word]
     mov [es:bx], ax
     ret
@@ -176,23 +178,24 @@ paint_graphics:
     add bx, [first]
     mov cx, [count]
     mov si, [save_ptr]
-    xor di, di
-.byte:
     cmp byte [op], 0
     jne .restore
+    xor di, di
+.byte:
     mov al, [es:bx]
     mov [si], al
     and al, [sbuf+di]
     xor al, [cbuf+di]
-    jmp .write
-.restore:
-    mov al, [si]
-.write:
     mov [es:bx], al
     inc bx
     inc si
     inc di
     loop .byte
+    jmp .stored
+.restore:
+    mov di, bx
+    rep movsb
+.stored:
     mov [save_ptr], si
     inc byte [plane]
     mov al, [plane]
@@ -271,10 +274,13 @@ build_masks:
     loop .pixel
     ret
 
-; Save the VGA registers that the draw changes and set write mode 0 and read
-; mode 0.
-gc_indices db 1, 3, 4, 8
-gc_values  db 0, 0, 0, 0FFh
+; Save the Graphics Controller registers that the draw depends on and set
+; them for write mode 0 and read mode 0. A register is written only when its
+; value must change: a write to the mode register makes some adapters show
+; one wrong raster line. The mode register keeps its shift and 256-color bits.
+gc_indices db 1, 3, 4, 8, 5
+gc_keep    db 0, 0, 0, 0, 70h
+gc_set     db 0, 0, 0, 0FFh, 0
 
 vga_enter:
     mov dx, 3C4h
@@ -290,7 +296,7 @@ vga_enter:
     mov [gc_index], al
     mov si, gc_indices
     mov di, gc_saved
-    mov cx, 4
+    mov cx, 5
 .save:
     mov dx, 3CEh
     lodsb
@@ -299,52 +305,48 @@ vga_enter:
     in al, dx
     mov [di], al
     inc di
-    mov al, [si+3]
+    mov ah, al
+    and ah, [si+4]
+    or ah, [si+9]
+    cmp ah, al
+    je .next
+    mov al, ah
     out dx, al
+.next:
     loop .save
-    ; Write the mode register only when the write or read mode is not 0.
-    ; A write changes the render mode of some adapters for a moment, and the
-    ; raster shows a wrong line.
-    dec dx
-    mov al, 5
-    out dx, al
-    inc dx
-    in al, dx
-    mov [gc_mode], al
-    and al, 70h
-    cmp al, [gc_mode]
-    je .done
-    out dx, al
-.done:
     ret
 
 vga_leave:
-    mov dx, 3CEh
-    mov al, 5
-    out dx, al
-    inc dx
-    in al, dx
-    cmp al, [gc_mode]
-    je .registers
-    mov al, [gc_mode]
-    out dx, al
-.registers:
     mov si, gc_indices
     mov di, gc_saved
-    mov cx, 4
+    mov cx, 5
 .restore:
     mov dx, 3CEh
     lodsb
-    mov ah, [di]
+    out dx, al
+    inc dx
+    in al, dx
+    cmp al, [di]
+    je .same
+    mov al, [di]
+    out dx, al
+.same:
     inc di
-    out dx, ax
     loop .restore
+    dec dx
     mov al, [gc_index]
     out dx, al
     mov dx, 3C4h
     mov al, 2
-    mov ah, [map_mask]
-    out dx, ax
+    out dx, al
+    inc dx
+    in al, dx
+    cmp al, [map_mask]
+    je .index
+    mov al, [map_mask]
+    out dx, al
+.index:
+    dec dx
     mov al, [seq_index]
     out dx, al
     ret

@@ -66,7 +66,7 @@ install:
     mov ax, 0C200h
     mov bh, 1
     int 15h
-    jc .no_mouse
+    jc .unregister
     mov ax, 3533h
     int 21h
     mov [old33], bx
@@ -92,6 +92,11 @@ install:
     mov dx, (resident_end-$$+100h+15)/16
     mov ax, 3100h
     int 21h
+.unregister:
+    xor bx, bx
+    mov es, bx
+    mov ax, 0C207h
+    int 15h
 .no_mouse:
     mov dx, msg_no_mouse
     jmp exit_error

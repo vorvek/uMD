@@ -36,8 +36,8 @@ plane         resb 1
 seq_index     resb 1
 map_mask      resb 1
 gc_index      resb 1
-gc_saved      resb 4
-gc_mode       resb 1
+gc_saved      resb 5
+text_addr     resw 1
 drawn_x       resw 1
 drawn_y       resw 1
 saved_word    resw 1
@@ -113,9 +113,11 @@ int33:
     cmp ax, 31h
     jne .range
     mov al, LAST_FUNCTION
+    jmp .dispatch
 .range:
     cmp ax, LAST_FUNCTION
-    ja .unknown
+    jae .unknown
+.dispatch:
     push ds
     push es
     pusha
@@ -169,6 +171,9 @@ f_show:
 
 ; 02h
 f_hide:
+    call video_check
+    cmp byte [level], -128
+    je refresh
     dec byte [level]
     jmp refresh
 
@@ -492,6 +497,7 @@ compute_mult:
 
 ; Functions 00h and 21h.
 reset_state:
+    call video_check
     call erase
     push ds
     pop es
@@ -534,14 +540,10 @@ video_reset:
 ; function 00h.
 video_check:
     push es
-    mov ax, 40h
-    mov es, ax
-    mov al, [es:49h]
-    mov ah, [es:84h]
+    call bda_key
     cmp ax, [mode_key]
     jne .changed
-    mov al, [es:4Ah]
-    cmp al, [mode_key+2]
+    cmp dl, [mode_key+2]
     je .same
 .changed:
     pop es
@@ -565,21 +567,26 @@ type_params:
     db 0, 4, 1, 1, 0, 0A0h
     db 3, 1, 8, 0FFh, 0, 0A0h
 
-video_init:
-    push es
+; AX = BIOS mode and rows - 1, DL = columns, ES = BIOS data segment.
+bda_key:
     mov ax, 40h
     mov es, ax
     mov al, [es:49h]
     mov ah, [es:84h]
+    mov dl, [es:4Ah]
+    ret
+
+video_init:
+    push es
+    call bda_key
     mov [mode_key], ax
+    mov [mode_key+2], dl
     mov al, ah
     inc al
     mov ah, 0
     mul word [es:85h]
     mov [height], ax
-    mov dl, [es:4Ah]
-    mov [mode_key+2], dl
-    mov bl, [es:49h]
+    mov bl, [mode_key]
     pop es
     mov bh, 0
     mov al, 0FFh
@@ -603,13 +610,13 @@ video_init:
     mov [interleave+1], al
     lodsb
     mov [vseg+1], al
-    mov al, dl
+    mov al, [mode_key+2]
     mov ah, 0
     mov cl, [bpp_shift]
     shl ax, cl
     mov [stride], ax
 .size:
-    mov al, dl
+    mov al, [mode_key+2]
     mov ah, 0
     shl ax, 3
     mov [width], ax
